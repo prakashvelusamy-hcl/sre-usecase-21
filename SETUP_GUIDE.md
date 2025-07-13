@@ -2,12 +2,47 @@
 
 This guide will walk you through setting up a complete observability stack for a Python Flask application.
 
+This project sets up observability and auto-remediation for a Flask application using:
+- **Prometheus** for metrics scraping
+- **Grafana** for dashboards
+- **Alertmanager** for alert routing (email, Slack, webhook)
+- **Custom webhook service** for auto-remediation scripts
+- **Node Exporter** for system-level metrics
+
+---
+
+## 📦 Project Structure
+
+```bash
+.
+├── Dockerfile                  # Flask app Dockerfile
+├── Dockerfile.webhook         # Custom webhook service Dockerfile
+├── docker-compose.yml         # Compose stack for observability setup
+├── app.py                     # Flask app exposing metrics and healthcheck
+├── alertmanager.yml           # Alertmanager configuration (Slack/webhook)
+├── alert_rules.yml            # Prometheus alert rules
+├── prometheus.yml             # Prometheus scrape config
+├── grafana/
+│   ├── dashboards/            # JSON dashboard for Grafana
+│   └── provisioning/          # Provisioning setup for Grafana
+├── remediation_scripts/       # Scripts executed by webhook
+│   ├── alert_webhook.py
+│   ├── cleanup_disk.sh
+│   └── restart_app.sh
+├── requirements.txt           # Python requirements for Flask app
+├── grafana-dashboard.json     # Grafana dashboard exported JSON
+├── SETUP_GUIDE.md             # Manual setup instructions
+├── DOCKER_SETUP_GUIDE.md      # Docker-based setup instructions
+└── logs/                      # Log volume mounted from containers
+```
+
 ## Prerequisites
 
 - Linux VM (Ubuntu 20.04+ recommended)
 - Python 3.8+
 - Docker and Docker Compose
 - Git
+My Repo Structure
 
 ## Step 1: Setup Environment
 
@@ -212,14 +247,25 @@ curl -X POST http://localhost:9093/api/v1/alerts \
 
 ### 7.2 Configure Email Notifications
 
-Update `alertmanager.yml` with your SMTP settings:
+Update `alertmanager.yml` with your Slack Notification settings:
 
 ```yaml
-global:
-  smtp_smarthost: 'your-smtp-server:587'
-  smtp_from: 'alerts@yourcompany.com'
-  smtp_auth_username: 'your-email@yourcompany.com'
-  smtp_auth_password: 'your-app-password'
+route:
+  receiver: 'slack-notifications'
+
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - send_resolved: true
+        api_url: 'https://hooks.slack.com/services/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'
+        username: 'Alertmanager'
+        title: '{{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Severity:* {{ .Labels.severity }}
+          {{ end }}
+
 ```
 
 ### 7.3 Configure Slack Notifications
